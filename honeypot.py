@@ -10,21 +10,24 @@ logger.setLevel(level=logging.INFO)
 handler = RotatingFileHandler(filename="test.log", maxBytes=1024*5, backupCount=3)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 class SSH_Server(paramiko.ServerInterface):
-    def check_auth_password(self, username, password):
-        logger.info(f"{username}:{password}")
-        return paramiko.AUTH_FAILED
+    def __init__(self, client_addr):
+        self.client_addr = client_addr
 
+    def check_auth_password(self, username, password):
+        logger.info(f"IP={self.client_addr[0]}:PORT={self.client_addr[1]} / USER={username}:PASS={password}")
+        return paramiko.AUTH_FAILED
 
     def check_auth_publickey(self, username, key):
         return paramiko.AUTH_FAILED
 
 
-def handle_connection(client_sock, server_key):
+def handle_connection(client_sock, server_key, client_addr):
     transport = paramiko.Transport(client_sock)
     transport.add_server_key(server_key)
-    ssh = SSH_Server()
+    ssh = SSH_Server(client_addr)
     transport.start_server(server=ssh)
 
 
@@ -40,8 +43,8 @@ def main():
 
     while True:
         client_sock, client_addr = server_sock.accept()
-        print(f"Connection: {client_addr[0]}:{client_addr[1]}")
-        t = threading.Thread(target=handle_connection, args = (client_sock, server_key))
+        logger.info(f"Connection: {client_addr[0]}:{client_addr[1]}")
+        t = threading.Thread(target=handle_connection, args = (client_sock, server_key, client_addr))
         t.start()
 
 
