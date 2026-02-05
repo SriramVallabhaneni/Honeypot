@@ -4,6 +4,8 @@ import threading
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import json
+import time
 
 # rotating logs with 3 backups
 logger = logging.getLogger("honeypot")
@@ -15,14 +17,17 @@ logger.addHandler(handler)
 
 KEY_FILE = "server.key"
 
+JSON_FILE = "connections.jsonl"
+
 semaphore = threading.Semaphore(50)
 
 class SSH_Server(paramiko.ServerInterface):
     def __init__(self, client_addr):
         self.client_addr = client_addr
+        self.auth_attempts = []
 
     def check_auth_password(self, username, password):
-        logger.info(f"IP={self.client_addr[0]}:PORT={self.client_addr[1]} / USER={username}:PASS={password}")
+        self.auth_attempts.append({"username": username, "password": password})
         return paramiko.AUTH_FAILED
 
     def check_auth_publickey(self, username, key):
@@ -39,9 +44,21 @@ def key_handling():
         logger.info("Loaded existing SSH host key")
     return server_key
 
+# handles recording attempt to json file
+def write_json_record(record):
+    with open(JSON_FILE, "a") as file:
+        file.write(json.dumps(record) + "\n")
+        file.flush()
+
+
 # limits to 50 connections
 def handle_connection(client_sock, server_key, client_addr):
     with semaphore:
+        start_time = time.time()
+        ssh = None
+        client_banner = None
+        transport = None
+
         try:
             transport = paramiko.Transport(client_sock)
             transport.local_version = "SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.5"
@@ -49,12 +66,34 @@ def handle_connection(client_sock, server_key, client_addr):
             ssh = SSH_Server(client_addr)
             transport.start_server(server=ssh)
             client_banner=transport.remote_version
-            logger.info(f"IP={client_addr[0]} CLIENT_BANNER={client_banner}")
             transport.accept(5)
+
         except Exception as e:
             logger.warning(f"{client_addr[0]}:{client_addr[1]} - {e}")
+
         finally:
+            duration = round(time.time() - start_time, 2)
+
+            record = {
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "ip": client_addr[0],
+                "port": client_addr[1],
+                "client_banner": client_banner,
+                "auth_attempts": len(ssh.auth_attempts) if ssh else 0,
+                "credentials": ssh.auth_attempts if ssh else [],
+                "duration": duration
+            }
+
+            write_json_record(record)
+
+            if transport:
+                try:
+                    transport.close()
+                except:
+                    pass
+
             client_sock.close()
+
 
 def main():
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
