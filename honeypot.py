@@ -10,14 +10,14 @@ import time
 # rotating logs with 3 backups
 logger = logging.getLogger("honeypot")
 logger.setLevel(level=logging.INFO)
-handler = RotatingFileHandler(filename="test.log", maxBytes=1024*5, backupCount=3)
+handler = RotatingFileHandler("/data/test.log", maxBytes=1024*5, backupCount=3)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-KEY_FILE = "server.key"
+KEY_FILE = "/data/server.key"
 
-JSON_FILE = "connections.jsonl"
+JSON_FILE = "/data/connections.jsonl"
 
 semaphore = threading.Semaphore(50)
 
