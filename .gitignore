@@ -20,5 +20,5 @@ __pycache__/
 *.key
 
 # Runtime data
-data/
+Honeypot-Data/
 

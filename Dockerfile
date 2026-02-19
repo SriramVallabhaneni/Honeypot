@@ -17,11 +17,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY honeypot.py .
+COPY exporter.py .
 
 RUN mkdir /data && chown -R honeypot:honeypot /data
 
 USER honeypot
 
-EXPOSE 2222
+EXPOSE 22
 
 CMD ["python", "honeypot.py"]
